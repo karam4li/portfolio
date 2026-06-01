@@ -76,7 +76,12 @@ class DataFetcher:
 
         if len(tickers) == 1:
             if raw is not None and not raw.empty:
-                result[tickers[0]] = raw
+                if isinstance(raw.columns, pd.MultiIndex):
+                    df = raw[tickers[0]].dropna(how="all")
+                    if not df.empty:
+                        result[tickers[0]] = df
+                else:
+                    result[tickers[0]] = raw
         else:
             if raw is None or raw.empty:
                 return {}

@@ -1,5 +1,7 @@
 """Rich terminal display for scan results."""
 
+import io
+import sys
 from typing import List
 
 from rich import box
@@ -11,7 +13,12 @@ from rich.text import Text
 from screener import StockSignals
 from scorer import tier
 
-console = Console()
+_out = (
+    io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stdout, "buffer")
+    else sys.stdout
+)
+console = Console(file=_out, legacy_windows=False)
 
 
 # ----------------------------------------------------------------- formatters

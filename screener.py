@@ -58,6 +58,9 @@ def compute_ohlcv_signals(ticker: str, df: pd.DataFrame) -> Optional[StockSignal
         return None
 
     try:
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df.droplevel(0, axis=1)
+
         close = df["Close"].dropna()
         volume = df["Volume"].dropna()
 
