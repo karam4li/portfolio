@@ -102,9 +102,10 @@ def scan(tickers, ticker_file, top, min_price, max_price, min_volume,
 @click.argument("ticker")
 @click.option("--period", "-p", default="30d", show_default=True,
               help="Lookback period: 5d, 1mo, 3mo, 6mo, 1y")
-def detail(ticker, period):
+@click.option("--demo", is_flag=True, default=False,
+              help="Use synthetic data (no internet required)")
+def detail(ticker, period, demo):
     """Show a full signal breakdown for a single stock."""
-    from fetcher import DataFetcher
     from screener import compute_ohlcv_signals, enrich_with_fundamentals
     from scorer import compute_rocket_score, tier
     from display import _cap
@@ -112,25 +113,39 @@ def detail(ticker, period):
     from rich import box
 
     ticker = ticker.upper()
-    config = Config()
-    fetcher = DataFetcher(config)
 
-    console.print(f"\n[cyan]Fetching data for [bold]{ticker}[/bold]…[/cyan]")
-    ohlcv = fetcher.fetch_ohlcv_batch([ticker], period=period)
+    if demo:
+        from demo import generate_demo_results, _SEED_TICKERS
+        import random
+        # Find this ticker in the seed list, or generate a fresh rocket-profile signal
+        profile_map = dict(_SEED_TICKERS)
+        profile = profile_map.get(ticker, "rocket")
+        from demo import _make_signal
+        sig = _make_signal(ticker, profile, random.Random(hash(ticker) & 0xFFFF))
+        sig.rocket_score = compute_rocket_score(sig)
+        console.print(f"\n[dim yellow]Demo mode — showing synthetic data for {ticker}[/dim yellow]")
+    else:
+        from fetcher import DataFetcher
+        config = Config()
+        fetcher = DataFetcher(config)
 
-    if ticker not in ohlcv:
-        console.print(f"[red]No data for {ticker}. Check the ticker symbol.[/red]")
-        sys.exit(1)
+        console.print(f"\n[cyan]Fetching data for [bold]{ticker}[/bold]…[/cyan]")
+        ohlcv = fetcher.fetch_ohlcv_batch([ticker], period=period)
 
-    sig = compute_ohlcv_signals(ticker, ohlcv[ticker])
-    if sig is None:
-        console.print(f"[red]Could not compute signals for {ticker}.[/red]")
-        sys.exit(1)
+        if ticker not in ohlcv:
+            console.print(f"[red]No data for {ticker}. Check the ticker symbol.[/red]")
+            console.print("[dim]Tip: use --demo to preview with synthetic data.[/dim]")
+            sys.exit(1)
 
-    console.print("[cyan]Fetching fundamentals…[/cyan]")
-    info = fetcher.fetch_ticker_info(ticker)
-    enrich_with_fundamentals(sig, info)
-    sig.rocket_score = compute_rocket_score(sig)
+        sig = compute_ohlcv_signals(ticker, ohlcv[ticker])
+        if sig is None:
+            console.print(f"[red]Could not compute signals for {ticker}.[/red]")
+            sys.exit(1)
+
+        console.print("[cyan]Fetching fundamentals…[/cyan]")
+        info = fetcher.fetch_ticker_info(ticker)
+        enrich_with_fundamentals(sig, info)
+        sig.rocket_score = compute_rocket_score(sig)
 
     t = Table(
         title=f"[bold bright_cyan]{ticker}  —  Signal Detail[/bold bright_cyan]",
